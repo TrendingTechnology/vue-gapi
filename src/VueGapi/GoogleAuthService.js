@@ -1,5 +1,3 @@
-import { thenArgsFromCallbacks } from './utils'
-
 /**
  * Singleton class that provides methods to allow the user to sign in with a
  * Google account, get the user's current sign-in status, get specific data
@@ -17,11 +15,9 @@ import { thenArgsFromCallbacks } from './utils'
  * @class GoogleAuthService
  */
 export default class GoogleAuthService {
-  constructor() {
-    this.authenticated = this.isAuthenticated()
-    /** @type {GoogleAuth} */
-    this.authInstance = null
-    this.clientConfig = null
+  constructor(clientProvider) {
+    this.clientProvider = clientProvider
+    // this.clientConfig = clientConfig
 
     this.offlineAccessCode = null
     this.getOfflineAccessCode = this.getOfflineAccessCode.bind(this)
@@ -32,6 +28,14 @@ export default class GoogleAuthService {
     this.isAuthenticated = this.isAuthenticated.bind(this)
     this.isSignedIn = this.isSignedIn.bind(this)
     this.listenUserSignIn = this.listenUserSignIn.bind(this)
+  }
+
+  /**
+   * @method GoogleAuthService#getGapiClient
+   * @return {Promise<GoogleAuth>}
+   */
+  getGapiClient() {
+    return this.clientProvider.getClient()
   }
 
   /**
@@ -113,7 +117,6 @@ export default class GoogleAuthService {
     const profile = this.authInstance.currentUser.get().getBasicProfile()
     const authResult = this.authInstance.currentUser.get().getAuthResponse(true)
     this._setStorage(authResult, profile)
-    this.authenticated = true
   }
 
   /**
@@ -146,9 +149,6 @@ export default class GoogleAuthService {
    * @method GoogleAuthService#login
    * @see [GoogleAuth.signIn]{@link https://developers.google.com/identity/sign-in/web/reference#googleauthsignin}
    *
-   * @param {onResolved} [onResolve]
-   * @param {onRejected} [onReject]
-   *
    * @return {Promise}
    *
    * @example
@@ -164,36 +164,31 @@ export default class GoogleAuthService {
    *   }
    * </script>
    */
-  login(onResolve, onReject) {
-    if (!this.authInstance) throw new Error('gapi not initialized')
-    return new Promise((res, rej) => {
-      return this.authInstance
+  login() {
+    return this.clientProvider.getAuthInstance().then((authInstance) => {
+      return authInstance
         .signIn()
         .then(() => {
           this._setSession()
-          const { refreshToken: wantsRefreshToken } = this.clientConfig
+          const {
+            refreshToken: wantsRefreshToken, // TODO separate from gapi client config
+          } = this.clientProvider.getClientConfig()
           const noOfflineAccess = !wantsRefreshToken
           if (noOfflineAccess) {
-            return res()
+            return
           }
 
           return this.authInstance.grantOfflineAccess()
         })
         .then(function (offlineAccessResponse = null) {
           if (!offlineAccessResponse) {
-            return res()
+            return
           }
 
           const { code } = offlineAccessResponse
           localStorage.setItem('gapi.refresh_token', code)
-
-          res()
         })
-        .catch(function (error) {
-          console.error(error)
-          rej(error)
-        })
-    }).then(...thenArgsFromCallbacks(onResolve, onReject))
+    })
   }
 
   /**
@@ -236,9 +231,6 @@ export default class GoogleAuthService {
    * @method GoogleAuthService#logout
    * @see [GoogleAuth.signOut]{@link https://developers.google.com/identity/sign-in/web/reference#googleauthsignout}
    *
-   * @param {onResolved} [onResolve]
-   * @param {onRejected} [onReject]
-   *
    * @return {Promise}
    *
    * @example
@@ -254,20 +246,11 @@ export default class GoogleAuthService {
    *   }
    * </script>
    */
-  logout(onResolve, onReject) {
-    if (!this.authInstance) throw new Error('gapi not initialized')
-    return new Promise((res, rej) => {
-      this.authInstance.signOut().then(
-        () => {
-          this._clearStorage()
-          this.authenticated = false
-          res()
-        },
-        (error) => {
-          rej(error)
-        }
-      )
-    }).then(...thenArgsFromCallbacks(onResolve, onReject))
+  logout() {
+    return this.clientProvider
+      .getAuthInstance()
+      .then((authInstance) => authInstance.signOut())
+      .then(() => this._clearStorage())
   }
 
   /**

@@ -1,13 +1,3 @@
-export function deprecatedMsg(oldInstanceMethod, newInstanceMethod) {
-  let msg = `The ${oldInstanceMethod} Vue instance method is deprecated and will be removed in a future release.`
-
-  if (newInstanceMethod) {
-    msg += ` Please use ${newInstanceMethod} instead.`
-  }
-
-  return msg
-}
-
 export function getObjectCopy(object) {
   return JSON.parse(JSON.stringify(object))
 }

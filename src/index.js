@@ -1,15 +1,17 @@
-import VueGapi from './VueGapi'
+import GapiClientProvider from './VueGapi/GapiClientProvider'
+import GoogleAuthService from './VueGapi/GoogleAuthService'
+import { getObjectCopy } from './VueGapi/utils'
 
-function plugin(Vue, clientConfig) {
-  Vue.use(VueGapi, clientConfig)
+export default {
+  install: (Vue, clientConfig) => {
+    const gapiClientProvider = new GapiClientProvider(
+      getObjectCopy(clientConfig)
+    )
+
+    Vue.prototype.$gapi = new GoogleAuthService(gapiClientProvider)
+  },
 }
 
-// Install by default if using the script tag
-if (typeof window !== 'undefined' && window.Vue) {
-  window.Vue.use(plugin)
-}
-
-export default plugin
 const version = '__VERSION__'
-// Export all components too
+
 export { version }
